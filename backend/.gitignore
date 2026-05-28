@@ -1,0 +1,11 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# compilation
+/target
+.idea
+.vscode
+
+# env files (can opt-in for committing if needed)
+.env*
+
+readme.md

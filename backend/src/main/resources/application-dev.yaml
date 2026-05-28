@@ -1,0 +1,29 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/crm?createDatabaseIfNotExist=true
+    username: root
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+external:
+  crm:
+    base-url: ${EXTERNAL_CRM_BASE_URL}
+
+logging:
+  level:
+    "[com.flashpage.app.service.PlazaService]": DEBUG
+
+frontend:
+  url: "http://localhost:3000"
+
+google:
+  oauth2:
+    redirect-uri: "http://localhost:8080/api/auth/callback/google"
+
+cookie:
+  secure: false
+  domain: localhost
+  sameSite: Lax
