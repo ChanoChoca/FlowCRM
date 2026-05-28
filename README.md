@@ -1,6 +1,8 @@
 # FlowCRM
 
-Sistema CRM (Customer Relationship Management) para gestionar ventas, usuarios, desafios y dashboards operativos. Integra sincronizacion automatica con la plataforma Plaza y notificaciones via n8n.
+> **English version:** [README.en.md](README.en.md)
+
+Sistema CRM (Customer Relationship Management) para gestionar ventas, usuarios, desafios y dashboards operativos. Integra sincronizacion automatica con una plataforma externa y notificaciones via n8n.
 
 ## Tecnologias
 
@@ -11,7 +13,7 @@ Sistema CRM (Customer Relationship Management) para gestionar ventas, usuarios, 
 - Spring Data JPA + MySQL
 - Spring Mail (notificaciones por email)
 - Jsoup (scraping/parsing HTML)
-- Apache HttpClient 5 (integracion con Plaza)
+- Apache HttpClient 5 (integracion con plataforma externa)
 
 ### Frontend
 
@@ -26,13 +28,13 @@ Sistema CRM (Customer Relationship Management) para gestionar ventas, usuarios, 
 ```
 crm/
 ├── backend/
-│   └── src/main/java/com/flowcrm/app/
+│   └── src/main/java/com/flashpage/app/
 │       ├── config/          # Seguridad, JWT, CORS
 │       ├── controller/      # Auth, Catalogo, Dashboard, Desafio, Gestion, Usuario, Venta
 │       ├── exception/       # Manejo global de errores
 │       ├── model/           # Entidades JPA (Venta, Cliente, Producto, Usuario, etc.)
 │       ├── repository/      # Repositorios Spring Data
-│       └── service/         # Logica de negocio, sync con Plaza, JWT
+│       └── service/         # Logica de negocio, sync con plataforma externa, JWT
 ├── frontend/
 │   ├── app/
 │   │   ├── crm/            # Dashboard, Usuarios, Ventas
@@ -53,29 +55,27 @@ crm/
 
 ## Variables de entorno
 
-El backend requiere las siguientes variables:
+El backend requiere las siguientes variables en un archivo `.env`:
 
-`.env`
-
-| Variable               | Descripcion                                                    |
-| ---------------------- | -------------------------------------------------------------- |
-| `JWT_SECRET`           | Clave secreta utilizada para firmar y validar tokens JWT       |
-| `N8N_URL`              | URL base de la instancia de n8n                                |
-| `N8N_SECRET`           | Clave secreta utilizada para autenticar solicitudes hacia n8n  |
-| `MAIL_USERNAME`        | Dirección de correo utilizada para el envío de emails vía SMTP |
-| `MAIL_PASSWORD`        | Contraseña de aplicación del correo SMTP                       |
-| `GOOGLE_CLIENT_ID`     | Client ID de OAuth 2.0 para autenticación con Google           |
-| `GOOGLE_CLIENT_SECRET` | Client Secret de OAuth 2.0 para autenticación con Google       |
+| Variable                  | Descripcion                                                      |
+| ------------------------- | ---------------------------------------------------------------- |
+| `JWT_SECRET`              | Clave secreta Base64 (256-bit) para firmar y validar tokens JWT  |
+| `DB_PASSWORD`             | Contraseña de la base de datos MySQL                             |
+| `EXTERNAL_CRM_BASE_URL`   | URL base de la plataforma CRM externa                            |
+| `N8N_URL`                 | URL base de la instancia de n8n                                  |
+| `N8N_SECRET`              | Clave secreta Base64 (256-bit) para autenticar solicitudes a n8n |
+| `MAIL_USERNAME`           | Direccion de correo utilizada para el envio de emails via SMTP   |
+| `MAIL_PASSWORD`           | Contrasena de aplicacion del correo SMTP                         |
+| `GOOGLE_CLIENT_ID`        | Client ID de OAuth 2.0 para autenticacion con Google             |
+| `GOOGLE_CLIENT_SECRET`    | Client Secret de OAuth 2.0 para autenticacion con Google         |
 
 Configurar la conexion a MySQL en `application-dev.yaml` o `application-prod.yaml`.
 
-El frontend requiere las siguientes variables:
-
-`.env`
+El frontend requiere las siguientes variables en un archivo `.env`:
 
 | Variable                    | Descripcion                                          |
 | --------------------------- | ---------------------------------------------------- |
-| `NEXT_PUBLIC_API`           | Clave secreta para firmar tokens JWT                 |
+| `NEXT_PUBLIC_API`           | URL base de la API del backend                       |
 | `NEXT_PUBLIC_SUPPORT_EMAIL` | Correo de soporte mostrado en la aplicacion frontend |
 
 ## Ejecucion local
@@ -128,5 +128,5 @@ docker run -p 3000:3000 tu-nombre-de-imagen-frontend-docker-aqui
 - **Gestion de usuarios**: Roles, asesores, supervisores
 - **Dashboard**: Metricas en tiempo real con graficos (Recharts), filtros por periodo, vista de supervisores
 - **Desafios**: Sistema de desafios/metas para asesores
-- **Catalogo**: Productos y promos sincronizados con Plaza (cron diario a las 3:00 AM)
+- **Catalogo**: Productos y promos sincronizados con plataforma externa (cron diario a las 3:00 AM)
 - **Notificaciones**: Integracion con n8n para webhooks automatizados
