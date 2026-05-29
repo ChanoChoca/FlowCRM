@@ -121,6 +121,10 @@ docker build \
 docker run -p 3000:3000 tu-nombre-de-imagen-frontend-docker-aqui
 ```
 
+## Capturas de pantalla
+
+Las capturas de pantalla de la aplicación están disponibles en la carpeta [`images/`](images/).
+
 ## Funcionalidades principales
 
 - **Autenticacion**: Login con JWT, reset de password por email

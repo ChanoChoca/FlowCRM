@@ -121,6 +121,10 @@ docker build \
 docker run -p 3000:3000 your-frontend-image-name-here
 ```
 
+## Screenshots
+
+Screenshots of the application are available in the [`images/`](images/) folder.
+
 ## Main Features
 
 - **Authentication**: JWT login, password reset via email
