@@ -8,7 +8,9 @@ import {
   UsuarioFilters,
 } from "@/app/actions/usuarios";
 import Pagination from "@/components/Pagination";
+import UsuarioFiltersPanel from "@/components/UsuarioFilters";
 import { useCurrentUser } from "@/context/CurrentUserContext";
+import { useUsuarioFilters } from "@/hooks/useUsuarioFilters";
 import { useToast } from "@/layout/ToastProvider";
 import { fmtDate } from "@/lib/mappers/date";
 import { rolLabel } from "@/lib/mappers/rol";
@@ -40,28 +42,9 @@ import UsuarioForm from "./UsuarioForm";
 
 type PanelState =
   | { mode: "closed" }
-  | {
-      mode: "view";
-      id: number;
-      detail: UsuarioDetalleResponse | null;
-      loading: boolean;
-    }
-  | {
-      mode: "edit";
-      id: number;
-      detail: UsuarioDetalleResponse | null;
-      loading: boolean;
-    }
+  | { mode: "view"; id: number; detail: UsuarioDetalleResponse | null; loading: boolean }
+  | { mode: "edit"; id: number; detail: UsuarioDetalleResponse | null; loading: boolean }
   | { mode: "create" };
-
-const ROL_OPTIONS = [
-  { value: "LIDER", label: "Líder" },
-  { value: "GERENTE", label: "Gerente" },
-  { value: "ADMINISTRACION_RRHH_COBRANZA", label: "Admin/RRHH/Cobranza" },
-  { value: "JEFE_DE_SUPERVISOR", label: "Jefe de Supervisor" },
-  { value: "SUPERVISOR", label: "Supervisor" },
-  { value: "ASESOR", label: "Asesor" },
-];
 
 export default function Usuarios({
   usuariosPage,
@@ -84,12 +67,12 @@ export default function Usuarios({
 }) {
   const currentUser = useCurrentUser();
   const router = useRouter();
-  const puedeCrear = useMemo(
-    () => puedeCrearUsuario(currentUser),
-    [currentUser],
-  );
+  const puedeCrear = useMemo(() => puedeCrearUsuario(currentUser), [currentUser]);
 
   const [panel, setPanel] = useState<PanelState>({ mode: "closed" });
+
+  const { applyFilters, applyFilterDebounced, clearFilters, hasFilters, filterExtraParams } =
+    useUsuarioFilters(filters, currentSize);
 
   const openPanel = useCallback(async (id: number, mode: "view" | "edit") => {
     setPanel({ mode, id, detail: null, loading: true });
@@ -99,6 +82,7 @@ export default function Usuarios({
 
   const closePanel = useCallback(() => setPanel({ mode: "closed" }), []);
 
+  // Handle ?nuevo=true URL param
   const searchParams = useSearchParams();
   const triggeredRef = useRef(false);
   useEffect(() => {
@@ -109,41 +93,8 @@ export default function Usuarios({
     const params = new URLSearchParams(searchParams.toString());
     params.delete("nuevo");
     const qs = params.toString();
-    router.replace(qs ? `/crm/usuarios?${qs}` : "/crm/usuarios", {
-      scroll: false,
-    });
+    router.replace(qs ? `/crm/usuarios?${qs}` : "/crm/usuarios", { scroll: false });
   }, [searchParams, router, puedeCrear]);
-
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const applyFilters = useCallback(
-    (patch: Partial<UsuarioFilters>) => {
-      const merged = { ...filters, ...patch };
-      const params = new URLSearchParams({
-        page: "0",
-        size: String(currentSize),
-      });
-      for (const [k, v] of Object.entries(merged)) {
-        if (v) params.set(k, v);
-      }
-      router.push(`?${params.toString()}`);
-    },
-    [filters, currentSize, router],
-  );
-
-  const applyFilterDebounced = useCallback(
-    (patch: Partial<UsuarioFilters>) => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => applyFilters(patch), 400);
-    },
-    [applyFilters],
-  );
-
-  const clearFilters = useCallback(() => {
-    router.push(`?page=0&size=${currentSize}`);
-  }, [currentSize, router]);
-
-  const hasFilters = Object.values(filters).some(Boolean);
 
   const effectiveRows = useMemo<UsuarioResponse[]>(() => {
     const rol = scopedCurrentUser?.rol;
@@ -175,14 +126,6 @@ export default function Usuarios({
     return usuariosPage.content;
   }, [scopedCurrentUser, usuariosPage.content, currentPage]);
 
-  const filterExtraParams = useMemo(() => {
-    const extra: Record<string, string> = {};
-    for (const [k, v] of Object.entries(filters)) {
-      if (v) extra[k] = v;
-    }
-    return extra;
-  }, [filters]);
-
   return (
     <section className="mx-auto flex w-full max-w-7xl flex-col gap-6">
       <div className="flex items-end justify-between gap-4">
@@ -194,7 +137,6 @@ export default function Usuarios({
             Gestión paginada de usuarios, con acciones por rol.
           </p>
         </div>
-
         {puedeCrear && (
           <button
             type="button"
@@ -206,98 +148,36 @@ export default function Usuarios({
         )}
       </div>
 
-      <div className="rounded-2xl border border-neutral-200/80 bg-white/80 p-4 shadow-sm backdrop-blur-sm dark:border-neutral-700/50 dark:bg-neutral-900/60">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <input
-            type="text"
-            placeholder="Buscar (nombre, apellido, DNI, teléfono)"
-            defaultValue={filters.q ?? ""}
-            onChange={(e) => applyFilterDebounced({ q: e.target.value })}
-            className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder-neutral-400 transition-colors focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder-neutral-500"
-          />
-
-          <select
-            defaultValue={filters.rol ?? ""}
-            onChange={(e) => applyFilters({ rol: e.target.value })}
-            className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 transition-colors focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-          >
-            <option value="">Todos los roles</option>
-            {ROL_OPTIONS.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            defaultValue={filters.activo ?? ""}
-            onChange={(e) => applyFilters({ activo: e.target.value })}
-            className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 transition-colors focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-          >
-            <option value="">Todos</option>
-            <option value="true">Activo</option>
-            <option value="false">Inactivo</option>
-          </select>
-
-          <select
-            defaultValue={filters.supervisorId ?? ""}
-            onChange={(e) => applyFilters({ supervisorId: e.target.value })}
-            className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 transition-colors focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-          >
-            <option value="">Todos los supervisores</option>
-            {supervisores.map((s) => (
-              <option key={s.id} value={String(s.id)}>
-                {s.apellido}, {s.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {hasFilters && (
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="mt-3 text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 cursor-pointer"
-          >
-            Limpiar filtros
-          </button>
-        )}
-      </div>
+      <UsuarioFiltersPanel
+        filters={filters}
+        supervisores={supervisores}
+        hasFilters={hasFilters}
+        onDebounced={applyFilterDebounced}
+        onImmediate={applyFilters}
+        onClear={clearFilters}
+      />
 
       <div className="overflow-hidden rounded-2xl border border-neutral-200/80 bg-white/80 shadow-sm backdrop-blur-sm dark:border-neutral-700/50 dark:bg-neutral-900/60">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700/50">
             <thead className="bg-neutral-50/80 dark:bg-neutral-800/50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                  ID
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                  Usuario
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                  Rol
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                  Supervisor
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                  Activo
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                  Creado
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                  Acciones
-                </th>
+                {["ID", "Usuario", "Rol", "Supervisor", "Activo", "Creado", "Acciones"].map(
+                  (h) => (
+                    <th
+                      key={h}
+                      className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 ${h === "Acciones" ? "text-right" : "text-left"}`}
+                    >
+                      {h}
+                    </th>
+                  ),
+                )}
               </tr>
             </thead>
-
             <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800/50">
               {effectiveRows.map((u) => {
                 const canEdit = puedeEditarUsuario(currentUser, u);
                 const canDelete = puedeDesactivarUsuario(currentUser, u);
-
                 return (
                   <tr
                     key={u.id}
@@ -306,32 +186,22 @@ export default function Usuarios({
                     <td className="px-4 py-3 font-medium text-neutral-900 dark:text-neutral-100">
                       {u.id}
                     </td>
-
                     <td className="px-4 py-3">
                       <div className="font-medium text-neutral-900 dark:text-neutral-100">
                         {u.apellido}, {u.nombre}
                       </div>
-                      <div className="text-neutral-500 dark:text-neutral-400">
-                        {u.dni}
-                      </div>
+                      <div className="text-neutral-500 dark:text-neutral-400">{u.dni}</div>
                     </td>
-
                     <td className="px-4 py-3 text-neutral-700 dark:text-neutral-300">
                       {rolLabel(u.rol)}
                     </td>
-
                     <td className="px-4 py-3 text-neutral-700 dark:text-neutral-300">
                       {u.supervisor?.id ? (
-                        <span>
-                          {u.supervisor.apellido}, {u.supervisor.nombre}
-                        </span>
+                        <span>{u.supervisor.apellido}, {u.supervisor.nombre}</span>
                       ) : (
-                        <span className="text-neutral-400 dark:text-neutral-500">
-                          -
-                        </span>
+                        <span className="text-neutral-400 dark:text-neutral-500">-</span>
                       )}
                     </td>
-
                     <td className="px-4 py-3">
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -343,11 +213,9 @@ export default function Usuarios({
                         {u.activo ? "Activo" : "Inactivo"}
                       </span>
                     </td>
-
                     <td className="px-4 py-3 text-neutral-500 dark:text-neutral-400">
                       {fmtDate(u.creadoEn ?? undefined)}
                     </td>
-
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
                         <button
@@ -357,7 +225,6 @@ export default function Usuarios({
                         >
                           Ver
                         </button>
-
                         {canEdit && (
                           <button
                             type="button"
@@ -367,22 +234,15 @@ export default function Usuarios({
                             Editar
                           </button>
                         )}
-
-                        {canDelete && (
-                          <ToggleActivoButton id={u.id!} activo={u.activo} />
-                        )}
+                        {canDelete && <ToggleActivoButton id={u.id!} activo={u.activo} />}
                       </div>
                     </td>
                   </tr>
                 );
               })}
-
               {effectiveRows.length === 0 && (
                 <tr>
-                  <td
-                    colSpan={7}
-                    className="px-4 py-10 text-center text-sm text-neutral-400 dark:text-neutral-500"
-                  >
+                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-neutral-400 dark:text-neutral-500">
                     No hay usuarios para mostrar.
                   </td>
                 </tr>
@@ -390,7 +250,6 @@ export default function Usuarios({
             </tbody>
           </table>
         </div>
-
         <div className="border-t border-neutral-100 p-4 dark:border-neutral-800/50">
           <Pagination
             currentPage={currentPage}
@@ -407,30 +266,21 @@ export default function Usuarios({
             className="fixed inset-x-0 bottom-0 top-16 z-40 bg-black/30 backdrop-blur-sm"
             onClick={closePanel}
           />
-
           <div className="fixed bottom-0 right-0 top-16 z-50 flex w-full max-w-2xl flex-col overflow-y-auto border-l border-neutral-200/80 bg-white shadow-2xl dark:border-neutral-700/50 dark:bg-neutral-950">
-            {(panel.mode === "view" || panel.mode === "edit") &&
-              panel.loading && (
-                <div className="flex flex-1 items-center justify-center p-12">
-                  <button
-                    type="button"
-                    onClick={closePanel}
-                    className="absolute right-4 top-4 rounded-lg p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300 cursor-pointer"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                      className="h-5 w-5"
-                    >
-                      <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-                    </svg>
-                  </button>
-                  <div className="text-sm text-neutral-500 dark:text-neutral-400">
-                    Cargando...
-                  </div>
-                </div>
-              )}
+            {(panel.mode === "view" || panel.mode === "edit") && panel.loading && (
+              <div className="flex flex-1 items-center justify-center p-12">
+                <button
+                  type="button"
+                  onClick={closePanel}
+                  className="absolute right-4 top-4 rounded-lg p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300 cursor-pointer"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                    <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                  </svg>
+                </button>
+                <div className="text-sm text-neutral-500 dark:text-neutral-400">Cargando...</div>
+              </div>
+            )}
 
             {panel.mode === "view" && !panel.loading && panel.detail && (
               <DetailView
@@ -440,12 +290,7 @@ export default function Usuarios({
                 supervisores={supervisores}
                 jefesDeSupervisor={jefesDeSupervisor}
                 onEdit={() =>
-                  setPanel({
-                    mode: "edit",
-                    id: panel.id,
-                    detail: panel.detail,
-                    loading: false,
-                  })
+                  setPanel({ mode: "edit", id: panel.id, detail: panel.detail, loading: false })
                 }
                 onClose={closePanel}
               />
@@ -498,15 +343,11 @@ export default function Usuarios({
 function ToggleActivoButton({ id, activo }: { id: number; activo: boolean }) {
   const { show } = useToast();
   const action = activo ? desactivarUsuario : activarUsuario;
-  const [state, formAction, isPending] = useActionState<
-    UsuarioActionState,
-    FormData
-  >(action, null);
+  const [state, formAction, isPending] = useActionState<UsuarioActionState, FormData>(action, null);
   const intentRef = useRef<"activar" | "desactivar" | null>(null);
 
   useEffect(() => {
-    if (state === null) return;
-    if (intentRef.current === null) return;
+    if (state === null || intentRef.current === null) return;
     const intent = intentRef.current;
     intentRef.current = null;
     if (state.error) {
@@ -522,12 +363,7 @@ function ToggleActivoButton({ id, activo }: { id: number; activo: boolean }) {
   }, [state, show]);
 
   return (
-    <form
-      action={formAction}
-      onSubmit={() => {
-        intentRef.current = activo ? "desactivar" : "activar";
-      }}
-    >
+    <form action={formAction} onSubmit={() => { intentRef.current = activo ? "desactivar" : "activar"; }}>
       <input type="hidden" name="id" value={id} />
       <button
         type="submit"
@@ -585,11 +421,8 @@ function DetailView({
           <h2 className="text-2xl font-semibold tracking-tight dark:text-neutral-100">
             {detail.apellido}, {detail.nombre}
           </h2>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">
-            {detail.dni}
-          </p>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">{detail.dni}</p>
         </div>
-
         <div className="flex gap-2">
           {canEdit && (
             <button
@@ -611,47 +444,29 @@ function DetailView({
       </div>
 
       <div className="grid gap-4 rounded-2xl border border-neutral-200/80 bg-white/80 p-6 shadow-sm backdrop-blur-sm dark:border-neutral-700/50 dark:bg-neutral-900/60 md:grid-cols-2">
-        <div className="space-y-1">
-          <div className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-            Rol
+        {[
+          { label: "Rol", value: detail.rol !== undefined ? rolLabel(detail.rol) : "-" },
+          { label: "Telefono", value: detail.telefono ?? "-" },
+          {
+            label: "Activo",
+            value: (
+              <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                Si
+              </span>
+            ),
+          },
+          {
+            label: detail.rol === Rol.SUPERVISOR ? "Jefe de Supervisor" : "Supervisor",
+            value: supervisor ? `${supervisor.apellido}, ${supervisor.nombre}` : "-",
+          },
+        ].map(({ label, value }) => (
+          <div key={label} className="space-y-1">
+            <div className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+              {label}
+            </div>
+            <div className="font-medium text-neutral-900 dark:text-neutral-100">{value}</div>
           </div>
-          <div className="font-medium text-neutral-900 dark:text-neutral-100">
-            {detail.rol !== undefined ? rolLabel(detail.rol) : "-"}
-          </div>
-        </div>
-
-        <div className="space-y-1">
-          <div className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-            Telefono
-          </div>
-          <div className="font-medium text-neutral-900 dark:text-neutral-100">
-            {detail.telefono ?? "-"}
-          </div>
-        </div>
-
-        <div className="space-y-1">
-          <div className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-            Activo
-          </div>
-          <div className="font-medium text-neutral-900 dark:text-neutral-100">
-            <span
-              className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400`}
-            >
-              Si
-            </span>
-          </div>
-        </div>
-
-        <div className="space-y-1">
-          <div className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-            {detail.rol === Rol.SUPERVISOR
-              ? "Jefe de Supervisor"
-              : "Supervisor"}
-          </div>
-          <div className="font-medium text-neutral-900 dark:text-neutral-100">
-            {supervisor ? `${supervisor.apellido}, ${supervisor.nombre}` : "-"}
-          </div>
-        </div>
+        ))}
       </div>
     </section>
   );

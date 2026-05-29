@@ -1,70 +1,24 @@
 "use client";
 
-import { useCurrentUser } from "@/context/CurrentUserContext";
+import SearchResults from "@/components/SearchResults";
+import { useGlobalSearch } from "@/hooks/useGlobalSearch";
 import { usePlatform } from "@/hooks/usePlatform";
-import { EstadoVenta, Rol } from "@/types/enums";
 import gsap from "gsap";
-import { Loader2, Search, ShoppingCart, User, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Loader2, Search, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
 
-interface VentaResult {
-  id: number;
-  clienteNombre: string;
-  producto: string;
-  central: string;
-  estado: EstadoVenta;
-}
-
-interface UsuarioResult {
-  id: number;
-  nombre: string;
-  apellido: string;
-  dni: string;
-  activo: boolean;
-}
-
-interface SearchResults {
-  ventas: VentaResult[];
-  usuarios: UsuarioResult[];
-}
-
-type FlatResult =
-  | { type: "usuario"; item: UsuarioResult }
-  | { type: "venta"; item: VentaResult };
-
-const ESTADO_COLORS: Record<EstadoVenta, string> = {
-  [EstadoVenta.PENDIENTE]: "text-amber-600 dark:text-amber-400",
-  [EstadoVenta.PREVENTA]: "text-sky-600 dark:text-sky-400",
-  [EstadoVenta.INICIADA]: "text-blue-600 dark:text-blue-400",
-  [EstadoVenta.CUMPLIDA]: "text-emerald-600 dark:text-emerald-400",
-  [EstadoVenta.TICKET]: "text-purple-600 dark:text-purple-400",
-  [EstadoVenta.CANCELADA]: "text-red-600 dark:text-red-400",
-  [EstadoVenta.RECHAZADA]: "text-neutral-500 dark:text-neutral-400",
-};
-
 export default function GlobalSearch() {
-  const router = useRouter();
   const { modLabel } = usePlatform();
-  const currentUser = useCurrentUser();
 
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResults>({
-    ventas: [],
-    usuarios: [],
-  });
-  const [loading, setLoading] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -73,55 +27,34 @@ export default function GlobalSearch() {
   const auraRef = useRef<HTMLDivElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
   const originRectRef = useRef<DOMRect | null>(null);
 
-  const showUsuarios = currentUser?.rol !== Rol.ASESOR;
+  const {
+    query,
+    setQuery,
+    results,
+    loading,
+    activeIndex,
+    setActiveIndex,
+    flatResults,
+    hasResults,
+    showUsuarios,
+    navigate,
+    clearResults,
+    handleKeyDown,
+  } = useGlobalSearch();
 
-  const hasResults =
-    (showUsuarios && results.usuarios.length > 0) || results.ventas.length > 0;
-
-  const flatResults: FlatResult[] = useMemo(
-    () => [
-      ...(showUsuarios
-        ? results.usuarios.map((u) => ({ type: "usuario" as const, item: u }))
-        : []),
-      ...results.ventas.map((v) => ({ type: "venta" as const, item: v })),
-    ],
-    [results, showUsuarios],
-  );
-
-  const close = useCallback(() => {
-    setOpen(false);
-  }, []);
-
-  const navigate = useCallback(
-    (entry: FlatResult) => {
-      if (entry.type === "usuario") {
-        router.push(`/crm/usuarios?q=${encodeURIComponent(entry.item.dni)}`);
-      } else {
-        router.push(
-          `/crm/ventas?cliente=${encodeURIComponent(entry.item.clienteNombre)}`,
-        );
-      }
-      close();
-    },
-    [router, close],
-  );
+  const close = useCallback(() => setOpen(false), []);
 
   const openSearch = useCallback(() => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
-
     originRectRef.current = rect;
     setMounted(true);
     setOpen(true);
     setExpanded(false);
   }, []);
 
-  // Mount/unmount lifecycle
   useEffect(() => {
     if (open) setMounted(true);
   }, [open]);
@@ -129,14 +62,12 @@ export default function GlobalSearch() {
   // Open / close animation
   useLayoutEffect(() => {
     if (!mounted) return;
-
     const backdrop = backdropRef.current;
     const glow = glowRef.current;
     const aura = auraRef.current;
     const shell = shellRef.current;
     const panel = panelRef.current;
     const rect = originRectRef.current;
-
     if (!backdrop || !shell || !rect) return;
 
     gsap.killTweensOf([backdrop, glow, aura, shell, panel].filter(Boolean));
@@ -150,27 +81,10 @@ export default function GlobalSearch() {
         height: rect.height,
         opacity: 1,
       });
-
-      gsap.fromTo(
-        backdrop,
-        { autoAlpha: 0 },
-        { autoAlpha: 1, duration: 0.18, ease: "power2.out" },
-      );
-
+      gsap.fromTo(backdrop, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.18, ease: "power2.out" });
       if (glow) {
-        gsap.fromTo(
-          glow,
-          { autoAlpha: 0, scale: 0.7 },
-          {
-            autoAlpha: 0.6,
-            scale: 1,
-            duration: 0.9,
-            delay: 0.1,
-            ease: "power2.out",
-          },
-        );
+        gsap.fromTo(glow, { autoAlpha: 0, scale: 0.7 }, { autoAlpha: 0.6, scale: 1, duration: 0.9, delay: 0.1, ease: "power2.out" });
       }
-
       if (aura) {
         gsap.set(aura, { autoAlpha: 0, scale: 0.85 });
         gsap.to(aura, {
@@ -180,18 +94,10 @@ export default function GlobalSearch() {
           delay: 0.35,
           ease: "power2.out",
           onComplete: () => {
-            gsap.to(aura, {
-              scale: 1.04,
-              autoAlpha: 0.75,
-              duration: 2.4,
-              ease: "sine.inOut",
-              repeat: -1,
-              yoyo: true,
-            });
+            gsap.to(aura, { scale: 1.04, autoAlpha: 0.75, duration: 2.4, ease: "sine.inOut", repeat: -1, yoyo: true });
           },
         });
       }
-
       gsap.to(shell, {
         delay: 0.05,
         top: "10vh",
@@ -208,90 +114,35 @@ export default function GlobalSearch() {
       });
     } else {
       setExpanded(false);
-
       const tl = gsap.timeline({
         onComplete: () => {
           setMounted(false);
           setQuery("");
-          setResults({ ventas: [], usuarios: [] });
-          setActiveIndex(0);
-          if (abortRef.current) abortRef.current.abort();
+          clearResults();
         },
       });
-
-      if (panel) {
-        tl.to(
-          panel,
-          { autoAlpha: 0, y: -8, duration: 0.14, ease: "power2.in" },
-          0,
-        );
-      }
-
-      if (glow) {
-        tl.to(
-          glow,
-          {
-            autoAlpha: 0,
-            scale: 0.7,
-            duration: 0.22,
-            ease: "power2.in",
-          },
-          0,
-        );
-      }
-
-      if (aura) {
-        tl.to(
-          aura,
-          {
-            autoAlpha: 0,
-            scale: 0.85,
-            duration: 0.2,
-            ease: "power2.in",
-          },
-          0,
-        );
-      }
-
-      tl.to(
-        shell,
-        {
-          top: rect.top,
-          left: rect.left,
-          xPercent: 0,
-          width: rect.width,
-          height: rect.height,
-          duration: 0.24,
-          ease: "power2.in",
-        },
-        0,
-      );
-
+      if (panel) tl.to(panel, { autoAlpha: 0, y: -8, duration: 0.14, ease: "power2.in" }, 0);
+      if (glow) tl.to(glow, { autoAlpha: 0, scale: 0.7, duration: 0.22, ease: "power2.in" }, 0);
+      if (aura) tl.to(aura, { autoAlpha: 0, scale: 0.85, duration: 0.2, ease: "power2.in" }, 0);
+      tl.to(shell, { top: rect.top, left: rect.left, xPercent: 0, width: rect.width, height: rect.height, duration: 0.24, ease: "power2.in" }, 0);
       tl.to(backdrop, { autoAlpha: 0, duration: 0.18, ease: "power2.in" }, 0);
     }
-  }, [open, mounted]);
+  }, [open, mounted, setQuery, clearResults]);
 
-  // Panel entrance
+  // Panel entrance animation
   useEffect(() => {
     if (!mounted || !expanded || !query.trim()) return;
     const panel = panelRef.current;
     if (!panel) return;
-
-    gsap.fromTo(
-      panel,
-      { autoAlpha: 0, y: -8 },
-      { autoAlpha: 1, y: 0, duration: 0.2, ease: "power2.out" },
-    );
+    gsap.fromTo(panel, { autoAlpha: 0, y: -8 }, { autoAlpha: 1, y: 0, duration: 0.2, ease: "power2.out" });
   }, [mounted, expanded, query]);
 
   // Focus input once expanded
   useEffect(() => {
-    if (open && mounted && expanded) {
-      inputRef.current?.focus();
-    }
+    if (open && mounted && expanded) inputRef.current?.focus();
   }, [open, mounted, expanded]);
 
-  // Keyboard shortcuts
+  // Global keyboard shortcut Ctrl/Cmd+K
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -299,88 +150,11 @@ export default function GlobalSearch() {
         setOpen((prev) => !prev);
         return;
       }
-
-      if (e.key === "Escape") {
-        close();
-      }
+      if (e.key === "Escape") close();
     };
-
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [close]);
-
-  // Debounced search
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (abortRef.current) abortRef.current.abort();
-
-    const q = query.trim();
-
-    if (!q) {
-      setResults({ ventas: [], usuarios: [] });
-      setLoading(false);
-      setActiveIndex(0);
-      return;
-    }
-
-    setLoading(true);
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/buscar?q=${encodeURIComponent(q)}`, {
-          signal: controller.signal,
-        });
-
-        if (!res.ok) return;
-
-        const data: SearchResults = await res.json();
-        setResults(data);
-        setActiveIndex(0);
-      } catch {
-        if (!controller.signal.aborted) {
-          setResults({ ventas: [], usuarios: [] });
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
-      }
-    }, 300);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      controller.abort();
-    };
-  }, [query]);
-
-  // Keyboard navigation inside results
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Escape") {
-      close();
-      return;
-    }
-
-    if (e.key === "ArrowDown") {
-      if (!flatResults.length) return;
-      e.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, flatResults.length - 1));
-      return;
-    }
-
-    if (e.key === "ArrowUp") {
-      if (!flatResults.length) return;
-      e.preventDefault();
-      setActiveIndex((i) => Math.max(i - 1, 0));
-      return;
-    }
-
-    if (e.key === "Enter" && flatResults[activeIndex]) {
-      e.preventDefault();
-      navigate(flatResults[activeIndex]);
-    }
-  };
 
   const shellBase =
     "inline-flex h-10 items-center gap-2 rounded-xl border border-neutral-200/80 bg-white px-3 shadow-sm backdrop-blur dark:border-neutral-700/80 dark:bg-neutral-800";
@@ -406,11 +180,7 @@ export default function GlobalSearch() {
       </button>
 
       {mounted && (
-        <div
-          className="fixed inset-0 z-1000"
-          onClick={close}
-          role="presentation"
-        >
+        <div className="fixed inset-0 z-1000" onClick={close} role="presentation">
           <button
             ref={backdropRef}
             type="button"
@@ -426,8 +196,7 @@ export default function GlobalSearch() {
             style={{
               width: "min(70rem, 110vw)",
               height: "min(40rem, 70vh)",
-              background:
-                "radial-gradient(ellipse at center, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.08) 35%, rgba(255,255,255,0) 70%)",
+              background: "radial-gradient(ellipse at center, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.08) 35%, rgba(255,255,255,0) 70%)",
               filter: "blur(70px)",
               zIndex: 0,
             }}
@@ -442,8 +211,7 @@ export default function GlobalSearch() {
               width: "min(44rem, calc(100vw - 1rem))",
               height: "180px",
               transform: "translate(-50%, -50%)",
-              background:
-                "radial-gradient(ellipse at center, rgba(255,255,255,0.7) 0%, rgba(186,210,255,0.35) 25%, rgba(186,210,255,0.12) 50%, rgba(186,210,255,0) 75%)",
+              background: "radial-gradient(ellipse at center, rgba(255,255,255,0.7) 0%, rgba(186,210,255,0.35) 25%, rgba(186,210,255,0.12) 50%, rgba(186,210,255,0) 75%)",
               filter: "blur(28px)",
               zIndex: 5,
             }}
@@ -468,7 +236,7 @@ export default function GlobalSearch() {
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={handleKeyDown}
+                  onKeyDown={(e) => handleKeyDown(e, close)}
                   placeholder="Buscar clientes, ventas, usuarios..."
                   className="flex-1 bg-transparent text-sm text-neutral-900 placeholder-neutral-400 outline-none dark:text-neutral-100 dark:placeholder-neutral-500"
                 />
@@ -515,114 +283,17 @@ export default function GlobalSearch() {
               className="absolute left-1/2 top-[calc(10vh+4rem)] w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 rounded-2xl border border-neutral-200/80 bg-white shadow-2xl dark:border-neutral-700/80 dark:bg-neutral-900 opacity-0"
               style={{ zIndex: 11 }}
             >
-              {query.trim() && (
-                <div className="max-h-80 overflow-y-auto py-2">
-                  {!hasResults && !loading && (
-                    <p className="px-4 py-6 text-center text-sm text-neutral-400 dark:text-neutral-500">
-                      Sin resultados para &ldquo;{query}&rdquo;
-                    </p>
-                  )}
-
-                  {showUsuarios && results.usuarios.length > 0 && (
-                    <section>
-                      <p className="px-4 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-                        Usuarios
-                      </p>
-                      {results.usuarios.map((u) => {
-                        const idx = flatResults.findIndex(
-                          (r) => r.type === "usuario" && r.item.id === u.id,
-                        );
-
-                        return (
-                          <button
-                            key={u.id}
-                            type="button"
-                            onClick={() =>
-                              navigate({ type: "usuario", item: u })
-                            }
-                            onMouseEnter={() => setActiveIndex(idx)}
-                            className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors cursor-pointer ${
-                              activeIndex === idx
-                                ? "bg-neutral-100 dark:bg-neutral-800"
-                                : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
-                            }`}
-                          >
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800">
-                              <User className="h-3.5 w-3.5 text-neutral-500 dark:text-neutral-400" />
-                            </div>
-
-                            <div className="min-w-0">
-                              <p className="truncate text-[13px] font-medium text-neutral-900 dark:text-neutral-100">
-                                {u.nombre} {u.apellido}
-                              </p>
-                              <p className="text-[11px] text-neutral-400 dark:text-neutral-500">
-                                DNI {u.dni} ·{" "}
-                                <span
-                                  className={
-                                    u.activo
-                                      ? "text-emerald-600 dark:text-emerald-400"
-                                      : "text-red-500"
-                                  }
-                                >
-                                  {u.activo ? "Activo" : "Inactivo"}
-                                </span>
-                              </p>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </section>
-                  )}
-
-                  {results.ventas.length > 0 && (
-                    <section>
-                      <p className="px-4 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-                        Ventas
-                      </p>
-                      {results.ventas.map((v) => {
-                        const idx = flatResults.findIndex(
-                          (r) => r.type === "venta" && r.item.id === v.id,
-                        );
-
-                        return (
-                          <button
-                            key={v.id}
-                            type="button"
-                            onClick={() => navigate({ type: "venta", item: v })}
-                            onMouseEnter={() => setActiveIndex(idx)}
-                            className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors cursor-pointer ${
-                              activeIndex === idx
-                                ? "bg-neutral-100 dark:bg-neutral-800"
-                                : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
-                            }`}
-                          >
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800">
-                              <ShoppingCart className="h-3.5 w-3.5 text-neutral-500 dark:text-neutral-400" />
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-[13px] font-medium text-neutral-900 dark:text-neutral-100">
-                                {v.clienteNombre}
-                              </p>
-                              <p className="truncate text-[11px] text-neutral-400 dark:text-neutral-500">
-                                {v.producto} · {v.central}
-                              </p>
-                            </div>
-
-                            <span
-                              className={`shrink-0 text-[11px] font-medium ${
-                                ESTADO_COLORS[v.estado] ?? ""
-                              }`}
-                            >
-                              {v.estado}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </section>
-                  )}
-                </div>
-              )}
+              <SearchResults
+                query={query}
+                results={results}
+                flatResults={flatResults}
+                activeIndex={activeIndex}
+                hasResults={hasResults}
+                loading={loading}
+                showUsuarios={showUsuarios}
+                onNavigate={(entry) => navigate(entry, close)}
+                onHover={setActiveIndex}
+              />
 
               {hasResults && (
                 <div className="hidden border-t border-neutral-200/70 px-4 py-2 dark:border-neutral-700/70 sm:block">

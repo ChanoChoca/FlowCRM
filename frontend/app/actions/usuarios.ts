@@ -1,5 +1,6 @@
 "use server";
 
+import { apiFetch, getToken } from "@/lib/api.server";
 import { parseRol, rolLabel } from "@/lib/mappers/rol";
 import {
   AsesorOption,
@@ -13,68 +14,26 @@ import { Rol } from "@/types/enums";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 
-async function getToken() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("token")?.value;
-
-  if (!token) {
-    throw new Error("No autenticado");
-  }
-
-  return token;
-}
-
-async function apiFetch(path: string, init: RequestInit = {}, token?: string) {
-  const authToken = token ?? (await getToken());
-
-  return fetch(`${process.env.NEXT_PUBLIC_API}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${authToken}`,
-      ...(init.headers ?? {}),
-    },
-    cache: "no-store",
-  });
-}
-
 function requiredString(formData: FormData, key: string, label: string) {
   const value = formData.get(key);
-
   if (typeof value !== "string" || value.trim() === "") {
     throw new Error(`${label} es obligatorio`);
   }
-
   return value.trim();
 }
 
 function optionalString(formData: FormData, key: string) {
   const value = formData.get(key);
-
   if (typeof value !== "string") return null;
-
   const trimmed = value.trim();
   return trimmed === "" ? null : trimmed;
 }
 
 function optionalNumber(formData: FormData, key: string) {
   const value = formData.get(key);
-
   if (typeof value !== "string" || value.trim() === "") return null;
-
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
-}
-
-function optionalBoolean(formData: FormData, key: string) {
-  const value = formData.get(key);
-
-  if (typeof value !== "string" || value.trim() === "") return null;
-
-  if (value === "true") return true;
-  if (value === "false") return false;
-
-  return null;
 }
 
 export async function obtenerSupervisores(
